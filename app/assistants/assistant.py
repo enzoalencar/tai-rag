@@ -2,7 +2,7 @@ import asyncio
 from openai import pydantic_function_tool
 from time import time
 from app.openai import chat_stream
-from app.db import get_chat_messages, add_chat_messages
+from app.db import get_chat_messages, add_chat_messages, add_chat_messages_pg
 from app.assistants.tools import QueryKnowledgeBaseTool
 from app.assistants.prompts import MAIN_SYSTEM_PROMPT, RAG_SYSTEM_PROMPT
 from app.utils.sse_stream import SSEStream
@@ -67,6 +67,7 @@ class RAGAssistant:
             'created': int(time())
         }
         await add_chat_messages(self.rdb, self.chat_id, [user_db_message, assistant_db_message])
+        await add_chat_messages_pg(self.rdb, [user_db_message, assistant_db_message])
 
     async def _handle_conversation_task(self, message):
         try:

@@ -1,11 +1,17 @@
 import json
+from uuid import uuid4
 import numpy as np
 from redis.asyncio import Redis
 from redis.commands.search.field import TextField, VectorField, NumericField
 from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 from redis.commands.search.query import Query
 from redis.commands.json.path import Path
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app.config import settings
+from app.relational_db import Conversation, Message
+
 
 VECTOR_IDX_NAME = 'idx:vector'
 VECTOR_IDX_PREFIX = 'vector:'
@@ -28,6 +34,10 @@ async def setup_db(rdb):
 
 def get_redis():
     return Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT)
+
+def get_postgres():
+    engine = create_engine(settings.DATABASE_URL)
+    return sessionmaker(bind=engine)
 
 # VECTORS
 async def create_vector_index(rdb):
@@ -103,8 +113,40 @@ async def create_chat(rdb, chat_id, created):
     await rdb.json().set(CHAT_IDX_PREFIX + chat_id, Path.root_path(), chat)
     return chat
 
+async def create_chat_pg(pg, chat_id, created):
+    model = Conversation(
+        id=chat_id,
+        user_id=uuid4(),
+        agent_id=uuid4(),
+        context_id=uuid4(),
+        title='Coffee',
+        status=0,
+        created_at=created,
+        updated_at=created,
+    )
+
+    pg.add(model)
+    pg.commit()
+    pg.refresh(model)
+    print(f"Chat '{model.id}' created successfully")
+
 async def add_chat_messages(rdb, chat_id, messages):
     await rdb.json().arrappend(CHAT_IDX_PREFIX + chat_id, '$.messages', *messages)
+
+async def add_chat_messages_pg(pg, messages):
+    for message in messages:
+        model = Message(
+            conversation_id=uuid4(),
+            role=message['role'],
+            content=message['content'],
+            created_at=message['created'],
+            updated_at=message['created'],
+        )
+
+        pg.add(model)
+        pg.commit()
+        pg.refresh(model)
+        print(f"Message from '{model.role}' successfully saved to DB")
 
 async def chat_exists(rdb, chat_id):
     return await rdb.exists(CHAT_IDX_PREFIX + chat_id)
