@@ -10,8 +10,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
-from app.relational_db import Conversation, Message
-
+from app.models.conversation import Conversation
+from app.models.message import Message
 
 VECTOR_IDX_NAME = 'idx:vector'
 VECTOR_IDX_PREFIX = 'vector:'

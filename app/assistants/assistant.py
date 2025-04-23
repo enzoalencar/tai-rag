@@ -1,6 +1,7 @@
 import asyncio
 from openai import pydantic_function_tool
 from time import time
+from pydantic import json
 from app.openai import chat_stream
 from app.db import get_chat_messages, add_chat_messages, add_chat_messages_pg
 from app.assistants.tools import QueryKnowledgeBaseTool
