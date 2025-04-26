@@ -4,8 +4,8 @@ from uuid import uuid4
 from tqdm import tqdm
 from pdfminer.high_level import extract_text
 from app.utils.splitter import TextSplitter
-from app.openai import get_embeddings, token_size
-from app.db import get_redis, setup_db, add_chunks_to_vector_db
+from app.utils.openai import get_embeddings, token_size
+from app.services.db import get_redis, setup_db, add_chunks_to_vector_db
 from app.config import settings
 
 def batchify(iterable, batch_size):
