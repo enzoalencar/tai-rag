@@ -8,13 +8,9 @@ import uuid
 class Message(BaseEntity):
     __tablename__ = 'messages'
 
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     conversation_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("conversations.id"),
-        nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=False
     )
     role: Mapped[int]
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())

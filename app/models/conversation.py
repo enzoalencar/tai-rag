@@ -8,7 +8,6 @@ import uuid
 class Conversation(BaseEntity):
     __tablename__ = 'conversations'
 
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
@@ -20,5 +19,4 @@ class Conversation(BaseEntity):
     )
     title: Mapped[str] = mapped_column(Text)
     status: Mapped[int] = mapped_column(default=0)
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
