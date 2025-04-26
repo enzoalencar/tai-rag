@@ -3,7 +3,7 @@ from time import time
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
-from app.db import get_redis, create_chat, chat_exists, get_postgres, create_chat_pg
+from app.services.db import get_redis, create_chat, chat_exists, get_postgres, create_chat_pg
 from app.assistants.assistant import RAGAssistant
 
 class ChatIn(BaseModel):
