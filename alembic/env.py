@@ -6,7 +6,12 @@ from sqlalchemy import pool
 from alembic import context
 
 from app.config import settings
-from app.relational_db import Base, User, Agent, Context, Conversation, Message
+from app.models.shared.base_entity import BaseEntity
+from app.models.conversation import Conversation
+from app.models.message import Message
+from app.models.user import User
+from app.models.agent import Agent
+from app.models.context import Context
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -23,7 +28,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = Base.metadata
+target_metadata = BaseEntity.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -43,7 +48,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    config.set_main_option("sqlalchemy.url", Settings.DATABASE_URL)
+    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
