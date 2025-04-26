@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
-from app.db import search_vector_db
-from app.openai import get_embedding
+from app.services.db import search_vector_db
+from app.utils.openai import get_embedding
 
 class QueryKnowledgeBaseTool(BaseModel):
     """Query the knowledge base to answer user questions about new technology trends, their applications and broader impacts."""

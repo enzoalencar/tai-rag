@@ -1,6 +1,6 @@
 import nltk
 from functools import partial
-from app.openai import token_size
+from app.utils.openai import token_size
 
 sentence_tokenizer = nltk.tokenize.PunktSentenceTokenizer()
 
