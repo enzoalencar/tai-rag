@@ -10,8 +10,12 @@ class Settings(BaseSettings):
     REDIS_HOST: str = 'localhost'
     REDIS_PORT: int = 6379
     DOCS_DIR: str = 'datasets'
-    EXPORT_DIR: str = 'data'
+
     VECTOR_SEARCH_TOP_K: int = 10
+    VECTOR_IDX_NAME = 'idx:vector'
+    VECTOR_IDX_PREFIX = 'vector:'
+    CHAT_IDX_NAME = 'idx:chat'
+    CHAT_IDX_PREFIX = 'chat:'
 
     DB_HOST: str = 'postgres'
     DB_PORT: int = 5432
