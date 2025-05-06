@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+
 from app.services.db import search_vector_db
 from app.utils.openai import get_embedding
 

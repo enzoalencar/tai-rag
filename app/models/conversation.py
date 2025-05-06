@@ -1,9 +1,11 @@
-from app.models.shared.base_entity import BaseEntity
 from datetime import datetime
 from sqlalchemy import UUID, Text, func, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 import uuid
+
+from app.models.shared import BaseEntity
+
 
 class Conversation(BaseEntity):
     __tablename__ = 'conversations'

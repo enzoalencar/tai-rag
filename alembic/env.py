@@ -6,12 +6,9 @@ from sqlalchemy import pool
 from alembic import context
 
 from app.config import settings
-from app.models.shared.base_entity import BaseEntity
-from app.models.conversation import Conversation
-from app.models.message import Message
-from app.models.user import User
-from app.models.agent import Agent
-from app.models.context import Context
+from app.models.shared import BaseEntity
+from app.models import Conversation, Message, User, Agent, Context
+from app.services.seed_data import run_seed_sync
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -81,6 +78,9 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
+
+        # Seed Data at DB
+        run_seed_sync(connection)
 
 
 if context.is_offline_mode():
