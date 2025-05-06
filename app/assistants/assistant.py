@@ -1,7 +1,7 @@
 import asyncio
 from openai import pydantic_function_tool
 from time import time
-from pydantic import json
+import json
 from app.utils.openai import chat_stream
 from app.services.db import get_chat_messages, add_chat_messages, add_chat_messages_pg
 from app.assistants.tools import QueryKnowledgeBaseTool
@@ -20,18 +20,20 @@ class RAGAssistant:
         self.max_tool_calls = max_tool_calls
 
     async def _generate_chat_response(self, system_message, chat_messages, **kwargs):
-         messages = [system_message, *chat_messages]
-         async with chat_stream(messages=messages, **kwargs) as stream:
+        messages = [system_message, *chat_messages]
+        async with chat_stream(messages=messages, **kwargs) as stream:
             async for event in stream:
-                if event.type == 'content.delta':
-                    await self.sse_stream.send(json.dumps({
-                        'content': event.delta
-                    }))
-            
+                if event.type == 'chunk':
+                    payload = {
+                        'message': event.chunk.choices[0].delta.content,
+                        'finish_reason': event.chunk.choices[0].finish_reason or 'no'
+                    }
+                    await self.sse_stream.send(json.dumps(payload))
+
             final_completion = await stream.get_final_completion()
             assistant_message = final_completion.choices[0].message
             return assistant_message
-    
+        
     async def _handle_tool_calls(self, tool_calls, chat_messages):
         for tool_call in tool_calls[:self.max_tool_calls]:
             kb_tool = tool_call.function.parsed_arguments
@@ -53,7 +55,7 @@ class RAGAssistant:
             chat_messages=chat_messages,
             tools=self.tools_schema
         )
-        tool_calls = assistant_message.tool_calls
+        tool_calls = assistant_message.tool_calls or []
 
         if tool_calls:
             chat_messages.append(assistant_message)
@@ -68,7 +70,7 @@ class RAGAssistant:
             'created': int(time())
         }
         await add_chat_messages(self.rdb, self.chat_id, [user_db_message, assistant_db_message])
-        await add_chat_messages_pg(self.rdb, [user_db_message, assistant_db_message])
+        # await add_chat_messages_pg(self.rdb, [user_db_message, assistant_db_message])
 
     async def _handle_conversation_task(self, message):
         try:

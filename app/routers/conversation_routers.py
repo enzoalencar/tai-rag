@@ -18,10 +18,11 @@ async def get_rdb():
 
 async def get_pg():
     pg = get_postgres()
-    try:
-        yield pg
-    finally:
-        await pg.close()
+    with pg() as session:
+        try:
+            yield session
+        finally:
+            session.close()
 
 router = APIRouter()
 
@@ -30,7 +31,7 @@ async def create_new_chat(rdb = Depends(get_rdb), pg = Depends(get_pg)):
     chat_id = uuid4()
     created = int(time())
     await create_chat(rdb, str(chat_id), created)
-    await create_chat_pg(pg, chat_id, created)
+    # await create_chat_pg(pg, chat_id, created)
 
     return {'id': chat_id}
 
