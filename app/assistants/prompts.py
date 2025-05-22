@@ -41,3 +41,7 @@ Your role is to:
         
     Your ultimate goal is to create an immersive and educational conversation experience, helping users practice English through interactive roleplay and contextual dialogue.
 """
+
+INITIAL_PROMPT = """"
+teste
+"""
