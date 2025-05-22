@@ -1,10 +1,12 @@
+from app.interfaces.repositories import AgentRepositoryInterface
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Agent
 
 
-class AgentRepository:
-    def __init__(self, session):
+class AgentRepository(AgentRepositoryInterface):
+    def __init__(self, session: AsyncSession):
         self.session = session
 
     async def exists(self) -> bool:
