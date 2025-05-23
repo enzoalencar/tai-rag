@@ -5,7 +5,7 @@ import json
 
 from app.utils.openai import chat_stream
 from app.services.db import get_chat_messages
-from app.services.chat import add_chat_messages
+from app.services.chat import ChatService
 from app.assistants.tools import QueryKnowledgeBaseTool
 from app.assistants.prompts import MAIN_SYSTEM_PROMPT, RAG_SYSTEM_PROMPT
 from app.utils.sse_stream import SSEStream
@@ -14,6 +14,7 @@ class RAGAssistant:
     def __init__(self, chat_id, rdb, history_size=4, max_tool_calls=3):
         self.chat_id = chat_id
         self.rdb = rdb
+        self.chat_service = ChatService()
         self.sse_stream = None
         self.main_system_message = {'role': 'system', 'content': MAIN_SYSTEM_PROMPT}
         self.rag_system_message = {'role': 'system', 'content': RAG_SYSTEM_PROMPT}
@@ -71,7 +72,7 @@ class RAGAssistant:
             ],
             'created': int(time())
         }
-        await add_chat_messages(self.rdb, self.chat_id, [user_db_message, assistant_db_message])
+        await self.chat_service.add_chat_messages(self.rdb, self.chat_id, [user_db_message, assistant_db_message])
 
     async def _handle_conversation_task(self, message):
         try:

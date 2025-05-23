@@ -1,5 +1,5 @@
 from fastapi import Depends
-from app.infra.db.redis_provider import RedisProvider, PostgresProvider
+from app.infra.providers import RedisProvider, PostgresProvider
 from app.infra import UserRepository, AgentRepository, ContextRepository, ConversationRepository, MessageRepository
 from app.services.chat import ChatService
 
