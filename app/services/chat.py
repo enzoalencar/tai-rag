@@ -21,8 +21,8 @@ class ChatService:
         chat_id = uuid4()
         created = datetime.now()
 
-        chat = {'id': chat_id, 'created': created, 'messages': []}
-        await self.rdb.json().set(settings.CHAT_IDX_PREFIX + chat_id, Path.root_path(), chat)
+        chat = {'id': str(chat_id), 'created': created, 'messages': []}
+        await self.rdb.json().set(settings.CHAT_IDX_PREFIX + str(chat_id), Path.root_path(), chat)
 
         user = await self.user_repo.create_temp()
         agent = await self.agent_repo.get_by_model(settings.MODEL)

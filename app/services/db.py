@@ -13,22 +13,17 @@ from app.config import settings
 from app.models.conversation import Conversation
 from app.models.message import Message
 
-VECTOR_IDX_NAME = 'idx:vector'
-VECTOR_IDX_PREFIX = 'vector:'
-CHAT_IDX_NAME = 'idx:chat'
-CHAT_IDX_PREFIX = 'chat:'
-
 async def setup_db(rdb):
     try:
-        await rdb.ft(VECTOR_IDX_NAME).dropindex(delete_documents=True)
-        print(f"Deleted vector index '{VECTOR_IDX_NAME}' and all associated documents")
+        await rdb.ft(settings.VECTOR_IDX_NAME).dropindex(delete_documents=True)
+        print(f"Deleted vector index '{settings.VECTOR_IDX_NAME}' and all associated documents")
     except Exception as e:
         pass
     finally:
         await create_vector_index(rdb)
 
     try:
-        await rdb.ft(CHAT_IDX_NAME).info()
+        await rdb.ft(settings.CHAT_IDX_NAME).info()
     except Exception:
         await create_chat_index(rdb)
 
@@ -57,18 +52,18 @@ async def create_vector_index(rdb):
         )
     )
     try:
-        await rdb.ft(VECTOR_IDX_NAME).create_index(
+        await rdb.ft(settings.VECTOR_IDX_NAME).create_index(
             fields=schema,
-            definition=IndexDefinition(prefix=[VECTOR_IDX_PREFIX], index_type=IndexType.JSON)
+            definition=IndexDefinition(prefix=[settings.VECTOR_IDX_PREFIX], index_type=IndexType.JSON)
         )
-        print(f"Vector index '{VECTOR_IDX_NAME}' created successfully")
+        print(f"Vector index '{settings.VECTOR_IDX_NAME}' created successfully")
     except Exception as e:
-        print(f"Error creating vector index '{VECTOR_IDX_NAME}': {e}")
+        print(f"Error creating vector index '{settings.VECTOR_IDX_NAME}': {e}")
 
 async def add_chunks_to_vector_db(rdb, chunks):
     async with rdb.pipeline(transaction=True) as pipe:
         for chunk in chunks:
-            pipe.json().set(VECTOR_IDX_PREFIX + chunk['chunk_id'], Path.root_path(), chunk)
+            pipe.json().set(settings.VECTOR_IDX_PREFIX + chunk['chunk_id'], Path.root_path(), chunk)
         await pipe.execute()
 
 async def search_vector_db(rdb, query_vector, top_k=settings.VECTOR_SEARCH_TOP_K):
@@ -78,7 +73,7 @@ async def search_vector_db(rdb, query_vector, top_k=settings.VECTOR_SEARCH_TOP_K
         .return_fields('score', 'chunk_id', 'text', 'doc_name')
         .dialect(2)
     )
-    res = await rdb.ft(VECTOR_IDX_NAME).search(query, {
+    res = await rdb.ft(settings.VECTOR_IDX_NAME).search(query, {
         'query_vector': np.array(query_vector, dtype=np.float32).tobytes()
     })
     return [{
@@ -89,8 +84,8 @@ async def search_vector_db(rdb, query_vector, top_k=settings.VECTOR_SEARCH_TOP_K
     } for d in res.docs]
 
 async def get_all_vectors(rdb):
-    count = await rdb.ft(VECTOR_IDX_NAME).search(Query('*').paging(0, 0))
-    res = await rdb.ft(VECTOR_IDX_NAME).search(Query('*').paging(0, count.total))
+    count = await rdb.ft(settings.VECTOR_IDX_NAME).search(Query('*').paging(0, 0))
+    res = await rdb.ft(settings.VECTOR_IDX_NAME).search(Query('*').paging(0, count.total))
     return [json.loads(doc.json) for doc in res.docs]
 
 
@@ -100,22 +95,22 @@ async def create_chat_index(rdb):
         schema = (
             NumericField('$.created', as_name='created', sortable=True),
         )
-        await rdb.ft(CHAT_IDX_NAME).create_index(
+        await rdb.ft(settings.CHAT_IDX_NAME).create_index(
             fields=schema,
-            definition=IndexDefinition(prefix=[CHAT_IDX_PREFIX], index_type=IndexType.JSON)
+            definition=IndexDefinition(prefix=[settings.CHAT_IDX_PREFIX], index_type=IndexType.JSON)
         )
-        print(f"Chat index '{CHAT_IDX_NAME}' created successfully")
+        print(f"Chat index '{settings.CHAT_IDX_NAME}' created successfully")
     except Exception as e:
-        print(f"Error creating chat index '{CHAT_IDX_NAME}': {e}")
+        print(f"Error creating chat index '{settings.CHAT_IDX_NAME}': {e}")
 
 async def chat_exists(rdb, chat_id):
-    return await rdb.exists(CHAT_IDX_PREFIX + chat_id)
+    return await rdb.exists(settings.CHAT_IDX_PREFIX + chat_id)
 
 async def get_chat_messages(rdb, chat_id, last_n=None):
     if last_n is None:
-        messages = await rdb.json().get(CHAT_IDX_PREFIX + chat_id, '$.messages[*]')
+        messages = await rdb.json().get(settings.CHAT_IDX_PREFIX + chat_id, '$.messages[*]')
     else:
-        messages = await rdb.json().get(CHAT_IDX_PREFIX + chat_id, f'$.messages[-{last_n}:]')
+        messages = await rdb.json().get(settings.CHAT_IDX_PREFIX + chat_id, f'$.messages[-{last_n}:]')
     return [{'role': m['role'], 'content': m['content']} for m in messages] if messages else []
 
 async def get_chat(rdb, chat_id):
@@ -123,6 +118,6 @@ async def get_chat(rdb, chat_id):
 
 async def get_all_chats(rdb):
     q = Query('*').sort_by('created', asc=False)
-    count = await rdb.ft(CHAT_IDX_NAME).search(q.paging(0, 0))
-    res = await rdb.ft(CHAT_IDX_NAME).search(q.paging(0, count.total))
+    count = await rdb.ft(settings.CHAT_IDX_NAME).search(q.paging(0, 0))
+    res = await rdb.ft(settings.CHAT_IDX_NAME).search(q.paging(0, count.total))
     return [json.loads(doc.json) for doc in res.docs]

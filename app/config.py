@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
+from typing import ClassVar
 
 class Settings(BaseSettings):
     ALLOW_ORIGINS: str = '*'
@@ -12,10 +12,10 @@ class Settings(BaseSettings):
     DOCS_DIR: str = 'datasets'
 
     VECTOR_SEARCH_TOP_K: int = 10
-    VECTOR_IDX_NAME = 'idx:vector'
-    VECTOR_IDX_PREFIX = 'vector:'
-    CHAT_IDX_NAME = 'idx:chat'
-    CHAT_IDX_PREFIX = 'chat:'
+    VECTOR_IDX_NAME: str = 'idx:vector'
+    VECTOR_IDX_PREFIX: str = 'vector:'
+    CHAT_IDX_NAME: str = 'idx:chat'
+    CHAT_IDX_PREFIX: str = 'chat:'
 
     DB_HOST: str = 'postgres'
     DB_PORT: int = 5432
