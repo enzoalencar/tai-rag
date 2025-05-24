@@ -7,7 +7,12 @@ from alembic import context
 
 from app.config import settings
 from app.models.shared import BaseEntity
-from app.models import Conversation, Message, User, Agent, Context
+from app.models import Conversation
+from app.models import Message 
+from app.models import User
+from app.models import Agent
+from app.models import Context
+
 from app.services.seed_data import run_seed_sync
 
 # this is the Alembic Config object, which provides

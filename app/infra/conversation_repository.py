@@ -24,5 +24,5 @@ class ConversationRepository(ConversationRepositoryInterface):
         )
         
         self.session.add(conversation)
-        await self.session.refresh(conversation)
+        await self.session.flush()
         return conversation
