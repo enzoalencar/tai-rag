@@ -5,16 +5,18 @@ import json
 
 from app.utils.openai import chat_stream
 from app.services.db import get_chat_messages
+from app.utils.di_container import get_chat_service
 from app.services.chat import ChatService
 from app.assistants.tools import QueryKnowledgeBaseTool
 from app.assistants.prompts import MAIN_SYSTEM_PROMPT, RAG_SYSTEM_PROMPT
 from app.utils.sse_stream import SSEStream
+from fastapi import Depends
 
 class RAGAssistant:
     def __init__(self, chat_id, rdb, history_size=4, max_tool_calls=3):
         self.chat_id = chat_id
         self.rdb = rdb
-        self.chat_service = ChatService()
+        self.chat_service = Depends(get_chat_service)
         self.sse_stream = None
         self.main_system_message = {'role': 'system', 'content': MAIN_SYSTEM_PROMPT}
         self.rag_system_message = {'role': 'system', 'content': RAG_SYSTEM_PROMPT}

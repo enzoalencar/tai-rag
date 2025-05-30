@@ -1,4 +1,5 @@
 from app.interfaces.repositories import AgentRepositoryInterface
+from app.schemas.agent.agent_dto import AgentDTO
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,5 +26,6 @@ class AgentRepository(AgentRepositoryInterface):
         query = select(Agent).where(Agent.model == model).limit(1)
 
         res = await self.session.execute(query)
-        return res.first()
 
+        agent = res.scalar_one_or_none()
+        return agent

@@ -1,4 +1,5 @@
 from app.interfaces.repositories import ContextRepositoryInterface
+from app.schemas.context.context_dto import ContextDTO
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,4 +14,6 @@ class ContextRepository(ContextRepositoryInterface):
         query = select(Context).where(Context.title == title).limit(1)
 
         res = await self.session.execute(query)
-        return res.first()
+
+        context = res.scalar_one_or_none()
+        return context
