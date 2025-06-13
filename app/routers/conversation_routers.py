@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
+
 from app.services.db import get_redis, chat_exists
 from app.assistants.assistant import RAGAssistant
 from app.services import ChatService
 from app.assistants import INITIAL_PROMPT
+from app.utils.openai import transcribe_audio
 
 
 class ChatIn(BaseModel):
