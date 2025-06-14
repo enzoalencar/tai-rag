@@ -10,8 +10,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
-from app.models.conversation import Conversation
-from app.models.message import Message
 
 async def setup_db(rdb):
     try:
@@ -73,9 +71,11 @@ async def search_vector_db(rdb, query_vector, top_k=settings.VECTOR_SEARCH_TOP_K
         .return_fields('score', 'chunk_id', 'text', 'doc_name')
         .dialect(2)
     )
+
     res = await rdb.ft(settings.VECTOR_IDX_NAME).search(query, {
         'query_vector': np.array(query_vector, dtype=np.float32).tobytes()
     })
+
     return [{
         'score': 1 - float(d.score),
         'chunk_id': d.chunk_id,
