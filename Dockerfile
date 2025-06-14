@@ -12,4 +12,22 @@ COPY ./datasets /home/datasets
 COPY ./alembic /home/alembic
 COPY alembic.ini /home/
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Criar script de inicialização
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Aguardando banco de dados..."\n\
+while ! pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER; do\n\
+  echo "Aguardando PostgreSQL..."\n\
+  sleep 2\n\
+done\n\
+echo "Executando migrações..."\n\
+alembic upgrade head\n\
+echo "Iniciando aplicação..."\n\
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000\n' > /home/entrypoint.sh
+
+RUN chmod +x /home/entrypoint.sh
+
+# Instalar postgresql-client para pg_isready
+RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
+
+CMD ["/home/entrypoint.sh"]
