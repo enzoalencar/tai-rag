@@ -12,6 +12,6 @@ class Message(BaseEntity):
     conversation_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=False
     )
-    role: Mapped[int]
+    role: Mapped[str]
     content: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     CHAT_IDX_NAME: str = 'idx:chat'
     CHAT_IDX_PREFIX: str = 'chat:'
 
-    DB_HOST: str = 'postgres'
+    DB_HOST: str = 'localhost'
     DB_PORT: int = 5432
     DB_USER: str = 'postgres'
     DB_PASSWORD: str = 'postgres'
