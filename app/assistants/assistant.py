@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from uuid import uuid4
 from openai import pydantic_function_tool
 from time import time
@@ -17,14 +18,13 @@ class RAGAssistant:
         self.chat_id = chat_id
         self.rdb = rdb
         self.chat_service = chat_service
-        self.sse_stream = None
         self.main_system_message = {'role': 'system', 'content': MAIN_SYSTEM_PROMPT}
         self.rag_system_message = {'role': 'system', 'content': RAG_SYSTEM_PROMPT}
         self.tools_schema = [pydantic_function_tool(QueryKnowledgeBaseTool)]
         self.history_size = history_size
         self.max_tool_calls = max_tool_calls
 
-    async def _generate_chat_response(self, system_message, chat_messages, **kwargs):
+    async def _generate_chat_response(self, system_message, chat_messages, send_func, **kwargs):
         messages = [system_message, *chat_messages]
         accumulated_content = ""
         buffered_chunks: list[dict] = []
@@ -40,7 +40,8 @@ class RAGAssistant:
                         accumulated_content += content
 
                     buffered_chunks.append({
-                        'message': content,
+                        'type': 'stream',
+                        'chunk': content,
                         'finish_reason': reason
                     })
 
@@ -53,64 +54,35 @@ class RAGAssistant:
 
         if not validated:
             error_payload = {
-                'message': "I'm not sure about that. Can you please rephrase or provide more context?",
+                'type': 'stream',
+                'chunk': "I'm not sure about that. Can you please rephrase or provide more context?",
                 'finish_reason': 'stop'
             }
-            await self.sse_stream.send(json.dumps(error_payload))
-            await self.sse_stream.close()
-            assistant_message.content = error_payload['message']
+            await send_func(error_payload)
+            assistant_message.message = error_payload
+            assistant_message.error = "error"
+
             return assistant_message
         
         for payload in buffered_chunks:
-            await self.sse_stream.send(json.dumps(payload))
+            await send_func(payload)
 
-        await self.sse_stream.close()
         return assistant_message
         
-    async def _handle_tool_calls(self, tool_calls, chat_messages):
+    async def _handle_tool_calls(self, tool_calls, chat_messages, send_func):
         for tool_call in tool_calls[:self.max_tool_calls]:
             kb_tool = tool_call.function.parsed_arguments
             kb_result = await kb_tool(self.rdb)
-            chat_messages.append(
-                {'role': 'tool', 'tool_call_id': tool_call.id, 'content': kb_result}
-            )
+            chat_messages.append({
+                'role': 'tool',
+                'tool_call_id': tool_call.id,
+                'content': kb_result
+            })
         return await self._generate_chat_response(
             system_message=self.rag_system_message,
             chat_messages=chat_messages,
+            send_func=send_func
         )
-    
-    async def _run_conversation_step(self, message):
-        user_db_message = {'role': 'user', 'content': message, 'created': int(time())}
-        chat_messages = await get_chat_messages(self.rdb, self.chat_id, last_n=self.history_size)
-        chat_messages.append({'role': 'user', 'content': message})
-        assistant_message = await self._generate_chat_response(
-            system_message=self.main_system_message,
-            chat_messages=chat_messages,
-            tools=self.tools_schema
-        )
-        tool_calls = assistant_message.tool_calls or []
-
-        if tool_calls:
-            chat_messages.append(assistant_message)
-            assistant_message = await self._handle_tool_calls(tool_calls, chat_messages)
-        
-        assistant_db_message = {
-            'role': 'assistant',
-            'content': assistant_message.content,
-            'tool_calls': [
-                {'name': tc.function.name, 'arguments': tc.function.arguments} for tc in tool_calls
-            ],
-            'created': int(time())
-        }
-        await self.chat_service.add_chat_messages(self.rdb, self.chat_id, [user_db_message, assistant_db_message])
-
-    async def _handle_conversation_task(self, message):
-        try:
-            await self._run_conversation_step(message)
-        except Exception as e:
-            print(f'Error: {str(e)}')
-        finally:
-            await self.sse_stream.close()
 
     async def _validate_and_store_response(self, response_content, chat_messages) -> bool:
         user_question = None
@@ -184,8 +156,50 @@ class RAGAssistant:
     def _cosine_similarity(self, vec1, vec2):
         vec1, vec2 = np.array(vec1), np.array(vec2)
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+    
+    async def run(self, message, send_func):
+        # try:
+            user_db_message = {'role': 'user', 'content': message, 'created': int(time())}
+            chat_messages = await get_chat_messages(self.rdb, self.chat_id, last_n=self.history_size)
+            chat_messages.append({'role': 'user', 'content': message})
 
-    def run(self, message):
-        self.sse_stream = SSEStream()
-        asyncio.create_task(self._handle_conversation_task(message))
-        return self.sse_stream
+            assistant_message = await self._generate_chat_response(
+                system_message=self.main_system_message,
+                chat_messages=chat_messages,
+                send_func=send_func,
+                tools=self.tools_schema
+            )
+            
+            if not hasattr(assistant_message, "error"):
+                tool_calls = assistant_message.choices[0].message.tool_calls or []
+
+                if tool_calls:
+                    chat_messages.append(assistant_message)
+                    assistant_message = await self._handle_tool_calls(tool_calls, chat_messages, send_func)
+
+                assistant_db_message = {
+                    'role': 'assistant',
+                    'content': assistant_message.choices[0].message.content,
+                    'tool_calls': [
+                        {'name': tc.function.name, 'arguments': tc.function.arguments} for tc in tool_calls
+                    ],
+                    'created': int(time())
+                }
+
+            tool_calls = []
+
+            assistant_db_message = {
+                'role': 'assistant',
+                'content': assistant_message.content,
+                'tool_calls': [
+                    {'name': tc.function.name, 'arguments': tc.function.arguments} for tc in tool_calls
+                ],
+                'created': int(time())
+            }
+
+            await self.chat_service.add_chat_messages(self.chat_id, [user_db_message, assistant_db_message])
+        # except Exception as e:
+        #     print(e, flush=True)
+        #     await send_func({'type': 'error', 'message': str(e)})
+        # finally:
+        #     await send_func({'type': 'done'})

@@ -26,7 +26,7 @@ class ChatService:
         chat = {'id': str(chat_id), 'created': created_redis, 'messages': []}
         await self.rdb.json().set(settings.CHAT_IDX_PREFIX + str(chat_id), Path.root_path(), chat)
 
-        user = await self.user_repo.create("user", "user@gmail.com")
+        user = await self.user_repo.create("user")
         agent = await self.agent_repo.get_by_model(settings.MODEL)
         context = await self.context_repo.get_by_title(theme_title)
 
@@ -47,10 +47,13 @@ class ChatService:
         await self.rdb.json().arrappend(settings.CHAT_IDX_PREFIX + chat_id, '$.messages', *messages)
     
         for message in messages:
+            created_ts = message['created']
+            created_dt = datetime.fromtimestamp(created_ts)
+
             await self.message_repo.create(
                 conversation_id=chat_id,
                 role=message['role'],
                 content=message['content'],
-                created_at=message['created'],
-                updated_at=message['created']
+                created_at=created_dt,
+                updated_at=created_dt
             )
