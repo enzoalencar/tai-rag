@@ -26,7 +26,7 @@ class ChatService:
         chat = {'id': str(chat_id), 'created': created_redis, 'messages': []}
         await self.rdb.json().set(settings.CHAT_IDX_PREFIX + str(chat_id), Path.root_path(), chat)
 
-        user = await self.user_repo.create("thigas", "thigas@gmail.com")
+        user = await self.user_repo.create("user", "user@gmail.com")
         agent = await self.agent_repo.get_by_model(settings.MODEL)
         context = await self.context_repo.get_by_title(theme_title)
 

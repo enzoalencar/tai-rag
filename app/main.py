@@ -1,5 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from alembic.config import Config
+from alembic import command
+import os
+
 from app.routers import conversation_routers, transcription_routers
 
 app = FastAPI()

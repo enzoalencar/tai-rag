@@ -45,3 +45,16 @@ Your role is to:
 INITIAL_PROMPT = """"
 teste
 """
+
+THEME_DICTS = {
+    "coffee": [
+        "coffee", "barista", "mocha", "espresso", 
+        "cappuccino", "latte", "americano", "macchiato", "caramel"
+    ],
+    "gym": [
+        "gym", "workout", "exercise", "fitness", "health",
+        "nutrition", "dumbbell", "barbell", "squat", 
+        "bench press", "deadlift", "pull-up", "push-up", 
+        "cardio", "running", "cycling", "swimming"
+    ]
+}

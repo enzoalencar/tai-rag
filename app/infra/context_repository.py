@@ -17,3 +17,11 @@ class ContextRepository(ContextRepositoryInterface):
 
         context = res.scalar_one_or_none()
         return context
+    
+    async def get_by_id(self, id: str) -> Context | None:
+        query = select(Context).where(Context.id == id).limit(1)
+
+        res = await self.session.execute(query)
+
+        context = res.scalar_one_or_none()
+        return context
