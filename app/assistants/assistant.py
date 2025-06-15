@@ -27,27 +27,45 @@ class RAGAssistant:
     async def _generate_chat_response(self, system_message, chat_messages, **kwargs):
         messages = [system_message, *chat_messages]
         accumulated_content = ""
+        buffered_chunks: list[dict] = []
         
         async with chat_stream(messages=messages, **kwargs) as stream:
             async for event in stream:
                 if event.type == 'chunk':
-                    chunk_content = event.chunk.choices[0].delta.content
-                    if chunk_content:
-                        accumulated_content += chunk_content
-                    
-                    payload = {
-                        'message': chunk_content,
-                        'finish_reason': event.chunk.choices[0].finish_reason or 'no'
-                    }
-                    await self.sse_stream.send(json.dumps(payload))
+                    chunk = event.chunk.choices[0]
+                    content = chunk.delta.content or ''
+                    reason = chunk.finish_reason or 'no'
+
+                    if content:
+                        accumulated_content += content
+
+                    buffered_chunks.append({
+                        'message': content,
+                        'finish_reason': reason
+                    })
 
             final_completion = await stream.get_final_completion()
             assistant_message = final_completion.choices[0].message
-            
-            if accumulated_content.strip():
-                await self._validate_and_store_response(accumulated_content, chat_messages)
-            
+
+        validated = False    
+        if accumulated_content.strip():
+            validated = await self._validate_and_store_response(accumulated_content, chat_messages)
+
+        if not validated:
+            error_payload = {
+                'message': "I'm not sure about that. Can you please rephrase or provide more context?",
+                'finish_reason': 'stop'
+            }
+            await self.sse_stream.send(json.dumps(error_payload))
+            await self.sse_stream.close()
+            assistant_message.content = error_payload['message']
             return assistant_message
+        
+        for payload in buffered_chunks:
+            await self.sse_stream.send(json.dumps(payload))
+
+        await self.sse_stream.close()
+        return assistant_message
         
     async def _handle_tool_calls(self, tool_calls, chat_messages):
         for tool_call in tool_calls[:self.max_tool_calls]:
