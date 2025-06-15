@@ -52,5 +52,5 @@ class ChatService:
                 role=message['role'],
                 content=message['content'],
                 created_at=message['created'],
-                updated_at=message['created'],
+                updated_at=message['created']
             )
