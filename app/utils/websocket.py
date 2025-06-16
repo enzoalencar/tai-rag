@@ -1,105 +1,176 @@
+import asyncio
 from typing import Dict, Optional
 from fastapi import WebSocket
+from app.assistants.assistant import RAGAssistant
+from app.services.chat import ChatService
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
-        self.current_turn: str = None
+class Room:
+    def __init__(self, mode: str):
+        self.connections: Dict[str, WebSocket] = {}
+        self.current_turn: Optional[str] = None
+        self.mode = mode
+        self.started = False
+        self.lock = asyncio.Lock()
+        self.is_assistant_thinking = False
 
-    async def notify_participants(self, exclude_id: Optional[str] = None):
-        message = {
-            "type": "participants",
-            "count": len(self.active_connections)
-        }
-        
-        for client_id, connection in self.active_connections.items():
-            if client_id != exclude_id:
-                await connection.send_json(message)
+    async def broadcast(self, message: dict, exclude: Optional[str] = None):
+        for user_id, ws in list(self.connections.items()):
+            if user_id != exclude:
+                try:
+                    await ws.send_json(message)
+                except:
+                    pass
 
-    async def connect(self, websocket: WebSocket, client_id: str):
+class LobbyManager:
+    def __init__(self, rdb):
+        self.rooms: Dict[str, Room] = {}
+        self.rdb = rdb
+        self.chat_service: Optional[ChatService] = None
+
+    def set_chat_service(self, chat_service: ChatService):
+            self.chat_service = chat_service
+
+    def get_room(self, room_id: str, mode: Optional[str] = None) -> Room:
+        if room_id not in self.rooms:
+            if not mode:
+                raise Exception("Modo da sala deve ser fornecido ao criar.")
+            self.rooms[room_id] = Room(mode)
+        return self.rooms[room_id]
+
+    async def connect(self, room_id: str, user_id: str, websocket: WebSocket, mode: str):
+        room = self.get_room(room_id, mode)
         await websocket.accept()
-        self.active_connections[client_id] = websocket
+        room.connections[user_id] = websocket
 
-        if self.current_turn is None:
-            self.current_turn = client_id
-        join_message = { "type": "join", "user": client_id }
-        for cid, connection in self.active_connections.items():
-            if cid != client_id:
-                await self.safe_send(connection, join_message)
-    
-        await self.notify_participants(exclude_id=client_id)
-        await self.send_turn_info()
+        if room.current_turn is None:
+            room.current_turn = user_id
 
-    async def send_turn_info(self):
-        message = {
-            "type": "turn",
-            "current_turn": self.current_turn
-        }
-        for connection in self.active_connections.values():
-            await self.safe_send(connection, message)
-            
-    async def disconnect(self, client_id: str):
-        if client_id in self.active_connections:
-            was_current_turn = client_id == self.current_turn
-            leave_message = { "type": "leave", "user": client_id }
-            for cid, connection in self.active_connections.items():
-                if cid != client_id:
-                    await self.safe_send(connection, leave_message)
-                
-            del self.active_connections[client_id]
+        await room.broadcast({
+            "type": "join",
+            "user": user_id,
+            "participants": list(room.connections.keys()),
+            "current_turn": room.current_turn
+        })
 
-            if not self.active_connections:
-                self.current_turn = None
-                return
+        async with room.lock:
+            num_users = len(room.connections)
 
-            if was_current_turn:
-                await self.switch_turn()
+            async def broadcast_send(payload: dict):
+                await room.broadcast(payload)
 
-            await self.notify_participants()
+            if room.mode == "solo":
+                if not room.started:
+                    await websocket.send_json({
+                        "type": "ready_to_start",
+                        "message": "Você está sozinho. A prática com a IA vai começar."
+                    })
+                    room.started = True
+                    room.is_assistant_thinking = True
+                    await room.broadcast({"type": "thinking", "value": True})
+                    assistant = RAGAssistant(chat_id=room_id, rdb=self.rdb, chat_service=self.chat_service)
+                    try:
+                        await assistant.run(message="start", send_func=broadcast_send, store_user_message=False)
+                    except Exception as e:
+                        await websocket.send_json({"type": "error", "message": str(e)})
+                    finally:
+                        room.is_assistant_thinking = False
+                        await room.broadcast({"type": "thinking", "value": False})
+                        await room.broadcast({
+                            "type": "turn",
+                            "current_turn": user_id
+                        })
 
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        await websocket.send_json(message)
 
-    async def broadcast(self, sender_id: str, message: str, role: str, type: str):
-        if sender_id != self.current_turn:
+            elif room.mode == "group":
+                if num_users < 2:
+                    await websocket.send_json({
+                        "type": "waiting",
+                        "message": "Esperando outro participante para começar."
+                    })
+                else:
+                    if not room.started:
+                        await room.broadcast({
+                            "type": "ready_to_start",
+                            "participants": list(room.connections.keys()),
+                            "current_turn": room.current_turn
+                        })
+                        room.started = True
+                        assistant = RAGAssistant(chat_id=room_id, rdb=self.rdb, chat_service=self.chat_service)
+                        try:
+                            await assistant.run(message="start", send_func=broadcast_send, store_user_message=False)
+                        except Exception as e:
+                            await room.broadcast({"type": "error", "message": str(e)})
+
+    async def disconnect(self, room_id: str, user_id: str):
+        room = self.get_room(room_id)
+        if user_id in room.connections:
+            del room.connections[user_id]
+            await room.broadcast({
+                "type": "leave",
+                "user": user_id,
+                "participants": list(room.connections.keys())
+            })
+            if room.current_turn == user_id:
+                if room.connections:
+                    room.current_turn = list(room.connections.keys())[0]
+                    await room.broadcast({
+                        "type": "turn",
+                        "current_turn": room.current_turn
+                    })
+                else:
+                    room.current_turn = None
+        if not room.connections:
+            del self.rooms[room_id]
+
+    async def switch_turn(self, room_id: str):
+        room = self.get_room(room_id)
+        users = list(room.connections.keys())
+        if not users:
+            room.current_turn = None
             return
-
-        # TODO:  user name instead of sender_id
-        
-        message = {
-            "type": type,
-            "role": role,
-            "message": message,
-            "sender": sender_id 
-        }
-        
-        for client_id, connection in self.active_connections.items():
-            if client_id != sender_id:
-                await self.safe_send(connection=connection, message=message)
-        
-        await self.switch_turn()
-
-    async def switch_turn(self):
-        if not self.active_connections:
-            self.current_turn = None
-            return
-        
-        clients = list(self.active_connections.keys())
-
-        if self.current_turn not in clients:
-            self.current_turn = clients[0]
+        if room.current_turn not in users:
+            room.current_turn = users[0]
         else:
-            current_index = clients.index(self.current_turn)
-            next_index = (current_index + 1) % len(clients)
-            self.current_turn = clients[next_index]
-        
-        await self.send_turn_info()
+            idx = users.index(room.current_turn)
+            room.current_turn = users[(idx + 1) % len(users)]
+        await room.broadcast({
+            "type": "turn",
+            "current_turn": room.current_turn
+        })
 
-    async def send_personal_message(self, message: dict, websocket: WebSocket) -> None:
-        await self.safe_send(websocket, message)
+    async def handle_message(self, room_id: str, user_id: str, content: str):
+        room = self.get_room(room_id)
         
-    async def safe_send(self, connection: WebSocket, message: dict) -> None:
+        if room.mode == "group" and user_id != room.current_turn:
+            return
+
+        if room.is_assistant_thinking:
+            return
+
+        room.is_assistant_thinking = True
+        await room.broadcast({"type": "thinking", "value": True})
+
+        await room.broadcast({
+            "type": "message",
+            "role": "user",
+            "sender": user_id,
+            "message": content
+        })
+
+        async def broadcast_send(payload: dict):
+            await room.broadcast(payload)
+
+        assistant = RAGAssistant(chat_id=room_id, rdb=self.rdb, chat_service=self.chat_service)
         try:
-            await connection.send_json(message)
+            await assistant.run(
+                message=content,
+                send_func=broadcast_send
+            )
         except Exception as e:
-            print(f"[Erro ao enviar mensagem]: {e}")
+            await room.broadcast({"type": "error", "message": str(e)})
+        finally:
+            room.is_assistant_thinking = False
+            await room.broadcast({"type": "thinking", "value": False})
+
+        if room.mode == "group":
+            await self.switch_turn(room_id)

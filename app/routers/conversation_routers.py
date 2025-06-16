@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import uuid4
 from app.utils.di_container import get_chat_service
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
@@ -11,7 +11,8 @@ from app.assistants.assistant import RAGAssistant
 from app.services import ChatService
 from app.assistants import INITIAL_PROMPT
 from app.utils.openai import transcribe_audio
-from app.utils.websocket import ConnectionManager
+from app.utils.websocket import LobbyManager
+
 
 class ChatIn(BaseModel):
     message: str = Field(default=INITIAL_PROMPT)
@@ -20,7 +21,7 @@ class NewChatIn(BaseModel):
     theme_title: str = Field(default='Coffee') # todo :: Ver se essa é a melhor forma de receber o tema do chat
 
 router = APIRouter()
-manager = ConnectionManager()
+lobby_manager = LobbyManager(rdb=get_redis())
 
 @router.post('/chats')
 async def new_chat(chat_in: NewChatIn, chat_service: ChatService = Depends(get_chat_service)):
@@ -84,14 +85,27 @@ async def websocket_solo_practice(websocket: WebSocket, chat_id: str, client_id:
     finally:
         await rdb.aclose()
 
-@router.websocket("/ws/{chat_id}/{client_id}")
-async def websocket_duo_practice(websocket: WebSocket, client_id: int):
-    await manager.connect(websocket=websocket, client_id=client_id)
+@router.websocket("/ws/lobby/{chat_id}/{client_id}")
+async def websocket_lobby(
+    websocket: WebSocket,
+    chat_id: str,
+    client_id: str,
+    mode: str = Query("group"),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    rdb = get_redis()
+    if not await chat_exists(rdb=rdb, chat_id=chat_id):
+        await websocket.close(code=1008)
+        return
+
+    lobby_manager.set_chat_service(chat_service)
+
+    await lobby_manager.connect(room_id=chat_id, user_id=client_id, websocket=websocket, mode=mode)
 
     try:
         while True:
-            data = await websocket.receive_text()
-            await manager.broadcast(sender_id=client_id, message=data, role="other_user", type="message")
+            data = await websocket.receive_json()
+            if data.get("type") == "message" and "message" in data:
+                await lobby_manager.handle_message(chat_id, client_id, data["message"])
     except WebSocketDisconnect:
-        await manager.disconnect(client_id=client_id)
-        await manager.broadcast(sender_id=None, message=f"O usuário #{client_id} saiu do chat", role="backend", type="info")
+        await lobby_manager.disconnect(chat_id, client_id)

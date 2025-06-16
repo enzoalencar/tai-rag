@@ -41,6 +41,7 @@ class RAGAssistant:
                     buffered_chunks.append({
                         'type': 'stream',
                         'chunk': content,
+                        'role': 'assistant',
                         'finish_reason': reason
                     })
 
