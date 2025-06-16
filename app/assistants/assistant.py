@@ -10,8 +10,7 @@ from app.services.chat import ChatService
 from app.services.db import add_chunks_to_vector_db, get_chat_messages, search_vector_db
 from app.assistants.tools import QueryKnowledgeBaseTool
 from app.assistants.prompts import MAIN_SYSTEM_PROMPT, RAG_SYSTEM_PROMPT, THEME_DICTS
-from app.utils import SSEStream, chat_stream, get_embedding
-
+from app.utils import chat_stream, get_embedding
 
 class RAGAssistant:
     def __init__(self, chat_id, rdb, chat_service: ChatService, history_size=4, max_tool_calls=3):
@@ -50,6 +49,7 @@ class RAGAssistant:
 
         validated = False    
         if accumulated_content.strip():
+            print(accumulated_content, flush=True)
             validated = await self._validate_and_store_response(accumulated_content, chat_messages)
 
         if not validated:
@@ -157,11 +157,21 @@ class RAGAssistant:
         vec1, vec2 = np.array(vec1), np.array(vec2)
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
     
-    async def run(self, message, send_func):
-        # try:
-            user_db_message = {'role': 'user', 'content': message, 'created': int(time())}
+    async def run(self, message, send_func, store_user_message: bool = True):
+        try:
             chat_messages = await get_chat_messages(self.rdb, self.chat_id, last_n=self.history_size)
-            chat_messages.append({'role': 'user', 'content': message})
+
+            user_message_for_context = {'role': 'user', 'content': message}
+            chat_messages.append(user_message_for_context)
+
+            if store_user_message:
+                user_db_message = {
+                    'role': 'user',
+                    'content': message,
+                    'created': int(time())
+                }
+            else:
+                user_db_message = None
 
             assistant_message = await self._generate_chat_response(
                 system_message=self.main_system_message,
@@ -169,24 +179,11 @@ class RAGAssistant:
                 send_func=send_func,
                 tools=self.tools_schema
             )
-            
-            if not hasattr(assistant_message, "error"):
-                tool_calls = assistant_message.choices[0].message.tool_calls or []
 
-                if tool_calls:
-                    chat_messages.append(assistant_message)
-                    assistant_message = await self._handle_tool_calls(tool_calls, chat_messages, send_func)
-
-                assistant_db_message = {
-                    'role': 'assistant',
-                    'content': assistant_message.choices[0].message.content,
-                    'tool_calls': [
-                        {'name': tc.function.name, 'arguments': tc.function.arguments} for tc in tool_calls
-                    ],
-                    'created': int(time())
-                }
-
-            tool_calls = []
+            tool_calls = assistant_message.choices[0].message.tool_calls or []
+            if tool_calls:
+                chat_messages.append(assistant_message)
+                assistant_message = await self._handle_tool_calls(tool_calls, chat_messages, send_func)
 
             assistant_db_message = {
                 'role': 'assistant',
@@ -197,9 +194,13 @@ class RAGAssistant:
                 'created': int(time())
             }
 
-            await self.chat_service.add_chat_messages(self.chat_id, [user_db_message, assistant_db_message])
-        # except Exception as e:
-        #     print(e, flush=True)
-        #     await send_func({'type': 'error', 'message': str(e)})
-        # finally:
-        #     await send_func({'type': 'done'})
+            messages_to_store = [assistant_db_message]
+            if user_db_message:
+                messages_to_store.insert(0, user_db_message)
+
+            await self.chat_service.add_chat_messages(self.chat_id, messages_to_store)
+
+        except Exception as e:
+            await send_func({'type': 'error', 'message': str(e)})
+        finally:
+            await send_func({'type': 'done'})

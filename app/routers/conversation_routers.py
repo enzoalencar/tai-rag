@@ -54,6 +54,15 @@ async def websocket_solo_practice(websocket: WebSocket, chat_id: str, client_id:
 
     assistant = RAGAssistant(chat_id=chat_id, rdb=rdb, chat_service=chat_service)
 
+    async def send_func(payload):
+        await websocket.send_json(payload)
+
+    await assistant.run(
+        message=INITIAL_PROMPT,
+        send_func=send_func,
+        store_user_message=False
+    )
+    
     try:
         while True:
             data = await websocket.receive_json()
@@ -63,9 +72,6 @@ async def websocket_solo_practice(websocket: WebSocket, chat_id: str, client_id:
                 continue
 
             message = data["content"]
-
-            async def send_func(payload):
-                await websocket.send_json(payload)
 
             await assistant.run(message=message, send_func=send_func)
 

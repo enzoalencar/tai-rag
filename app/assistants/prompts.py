@@ -43,7 +43,13 @@ Your role is to:
 """
 
 INITIAL_PROMPT = """"
-teste
+Given the chat theme and any stored context about it, create an immersive opening scenario in English for roleplay practice. Your response should include:
+1. A brief scene description (where and when it takes place, atmosphere).
+2. Definition of roles or characters (e.g., assistant plays a barista, user is a customer).
+3. The assistant's first line as the character, starting the dialogue naturally.
+4. An open-ended question or prompt that invites the user to respond and continue the conversation.
+
+Make it engaging, realistic, and suitable for English learners. Use a friendly and encouraging tone. Do not store the user's “initial prompt” as a message; only the assistant response will be recorded in the chat history.
 """
 
 THEME_DICTS = {
