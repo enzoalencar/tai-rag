@@ -52,6 +52,16 @@ Given the chat theme and any stored context about it, create an immersive openin
 Make it engaging, realistic, and suitable for English learners. Use a friendly and encouraging tone. Do not store the user's “initial prompt” as a message; only the assistant response will be recorded in the chat history.
 """
 
+INITIAL_PROMPT_TEMPLATE = """
+Based on the chat theme "{theme_title}" and any stored context, create an immersive opening scenario in English for roleplay practice. Your response should include:
+1. A brief scene description (where and when it takes place, atmosphere).
+2. Definition of roles or characters appropriate to "{theme_title}".
+3. The assistant’s first line as the character, starting the dialogue naturally.
+4. An open-ended question or prompt that invites the user to respond and continue the conversation.
+
+Make it engaging, realistic, and suitable for English learners. Use a friendly and encouraging tone. This assistant message will be saved as the first message of the chat history.
+""".strip()
+
 THEME_DICTS = {
     "coffee": [
         "coffee", "barista", "mocha", "espresso", 

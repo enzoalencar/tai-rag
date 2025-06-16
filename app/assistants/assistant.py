@@ -9,7 +9,7 @@ import numpy as np
 from app.services.chat import ChatService
 from app.services.db import add_chunks_to_vector_db, get_chat_messages, search_vector_db
 from app.assistants.tools import QueryKnowledgeBaseTool
-from app.assistants.prompts import MAIN_SYSTEM_PROMPT, RAG_SYSTEM_PROMPT, THEME_DICTS
+from app.assistants.prompts import INITIAL_PROMPT_TEMPLATE, MAIN_SYSTEM_PROMPT, RAG_SYSTEM_PROMPT, THEME_DICTS
 from app.utils import chat_stream, get_embedding
 
 class RAGAssistant:
@@ -49,7 +49,6 @@ class RAGAssistant:
 
         validated = False    
         if accumulated_content.strip():
-            print(accumulated_content, flush=True)
             validated = await self._validate_and_store_response(accumulated_content, chat_messages)
 
         if not validated:
@@ -146,7 +145,7 @@ class RAGAssistant:
                 return False
             
             context = await self.chat_service.context_repo.get_by_id(chat.context_id)
-            theme = context.title.lower() if context else 'coffee'        
+            theme = context.title.lower() if context else 'coffee'
             keywords = THEME_DICTS.get(theme, [])
 
             return any(kw in response.lower() for kw in keywords)
@@ -160,9 +159,9 @@ class RAGAssistant:
     async def run(self, message, send_func, store_user_message: bool = True):
         try:
             chat_messages = await get_chat_messages(self.rdb, self.chat_id, last_n=self.history_size)
-
-            user_message_for_context = {'role': 'user', 'content': message}
-            chat_messages.append(user_message_for_context)
+            chat = await self.chat_service.conversation_repo.get_by_id(self.chat_id)            
+            context = await self.chat_service.context_repo.get_by_id(chat.context_id)
+            chat_theme = context.title
 
             if store_user_message:
                 user_db_message = {
@@ -171,16 +170,21 @@ class RAGAssistant:
                     'created': int(time())
                 }
             else:
+                message = INITIAL_PROMPT_TEMPLATE.format(theme_title=chat_theme)
                 user_db_message = None
 
+            user_message_for_context = {'role': 'user', 'content': message}
+            chat_messages.append(user_message_for_context)
+            
             assistant_message = await self._generate_chat_response(
                 system_message=self.main_system_message,
                 chat_messages=chat_messages,
                 send_func=send_func,
                 tools=self.tools_schema
             )
+            
+            tool_calls = assistant_message.tool_calls or []
 
-            tool_calls = assistant_message.choices[0].message.tool_calls or []
             if tool_calls:
                 chat_messages.append(assistant_message)
                 assistant_message = await self._handle_tool_calls(tool_calls, chat_messages, send_func)

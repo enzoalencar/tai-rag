@@ -63,6 +63,8 @@ async def websocket_solo_practice(websocket: WebSocket, chat_id: str, client_id:
         store_user_message=False
     )
     
+    await websocket.send_json({"type": "turn", "message": client_id})
+    
     try:
         while True:
             data = await websocket.receive_json()
@@ -73,7 +75,9 @@ async def websocket_solo_practice(websocket: WebSocket, chat_id: str, client_id:
 
             message = data["content"]
 
+            await websocket.send_json({"type": "turn", "message": "assistant"})
             await assistant.run(message=message, send_func=send_func)
+            await websocket.send_json({"type": "turn", "message": client_id})
 
     except WebSocketDisconnect:
         print(f"Cliente {client_id} desconectado")

@@ -22,7 +22,6 @@ class ChatService:
         chat_id = uuid4()
         created_redis = int(time())
         created_postgres = datetime.now()
-        print(theme_title, flush=True)
         chat = {'id': str(chat_id), 'created': created_redis, 'messages': []}
         await self.rdb.json().set(settings.CHAT_IDX_PREFIX + str(chat_id), Path.root_path(), chat)
 
