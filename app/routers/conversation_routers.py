@@ -53,44 +53,26 @@ async def websocket_solo_practice(websocket: WebSocket, chat_id: str, client_id:
         await websocket.close(code=1008)
         return
 
-    assistant = RAGAssistant(chat_id=chat_id, rdb=rdb, chat_service=chat_service)
+    room_manager.set_chat_service(chat_service)
+    room_manager.rdb = rdb
 
-    async def send_func(payload):
-        await websocket.send_json(payload)
+    await room_manager.connect(room_id=chat_id, user_id=client_id, websocket=websocket, mode="solo")
 
-    await assistant.run(
-        message=INITIAL_PROMPT,
-        send_func=send_func,
-        store_user_message=False
-    )
-    
-    await websocket.send_json({"type": "turn", "message": client_id})
-    
     try:
         while True:
             data = await websocket.receive_json()
-
-            if data.get("type") != "message" or "content" not in data:
-                await websocket.send_json({"type": "error", "message": "Invalid message"})
-                continue
-
-            message = data["content"]
-
-            await websocket.send_json({"type": "turn", "message": "assistant"})
-            await assistant.run(message=message, send_func=send_func)
-            await websocket.send_json({"type": "turn", "message": client_id})
-
+            if data.get("type") == "message" and "message" in data:
+                await room_manager.handle_message(chat_id, client_id, data["message"])
     except WebSocketDisconnect:
-        print(f"Cliente {client_id} desconectado")
-    finally:
-        await rdb.aclose()
+        await room_manager.disconnect(chat_id, client_id)
+    except Exception:
+        await room_manager.disconnect(chat_id, client_id)
 
-@router.websocket("/ws/room/{chat_id}/{client_id}")
-async def websocket_room(
+@router.websocket("/ws/group/{chat_id}/{client_id}")
+async def websocket_group_practice(
     websocket: WebSocket,
     chat_id: str,
     client_id: str,
-    mode: str = Query("group"),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     rdb = get_redis()
@@ -103,7 +85,7 @@ async def websocket_room(
     room_manager.set_chat_service(chat_service)
     room_manager.rdb = rdb
 
-    await room_manager.connect(room_id=chat_id, user_id=client_id, websocket=websocket, mode=mode)
+    await room_manager.connect(room_id=chat_id, user_id=client_id, websocket=websocket, mode="group")
 
     try:
         while True:

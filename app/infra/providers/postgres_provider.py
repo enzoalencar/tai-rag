@@ -8,8 +8,10 @@ def adapt_db_url(url: str) -> str:
         return url.replace("postgresql://", "postgresql+asyncpg://", 1)
     elif url.startswith("postgresql+asyncpg://"):
         return url
+    elif url.startswith("postgresql+psycopg2://"):
+        return url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
     else:
-        return url
+        raise ValueError(f"URL de banco de dados inválida: {url}")
 
 class PostgresProvider(PostgresProviderInterface):
     def __init__(self):
