@@ -32,10 +32,10 @@ async def new_chat(chat_in: NewChatIn, chat_service: ChatService = Depends(get_c
 
 @router.websocket("/ws/solo/{chat_id}/{client_id}")
 async def websocket_solo_practice(websocket: WebSocket, chat_id: str, client_id: str, chat_service: ChatService = Depends(get_chat_service)):
-    await websocket.accept()
     rdb = get_redis()
 
     if not await chat_exists(rdb=rdb, chat_id=chat_id):
+        await websocket.accept()
         await websocket.close(code=1008)
         return
 
