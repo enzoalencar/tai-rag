@@ -23,3 +23,14 @@ def chat_stream(messages, model=settings.MODEL, temperature=0.1, **kwargs):
         temperature=temperature,
         **kwargs
     )
+
+async def transcribe_audio(audio_file):
+    try:
+        transcript = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            response_format="text"
+        )
+        return transcript
+    except Exception as e:
+        raise e

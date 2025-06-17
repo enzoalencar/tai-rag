@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers.conversation_routers import router
+from alembic.config import Config
+from alembic import command
+import os
+
+from app.routers import conversation_routers, transcription_routers
 
 app = FastAPI()
 
@@ -12,4 +16,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router)
+app.include_router(conversation_routers.router)
+app.include_router(transcription_routers.router)
