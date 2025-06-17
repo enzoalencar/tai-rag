@@ -30,6 +30,42 @@ async def new_chat(chat_in: NewChatIn, chat_service: ChatService = Depends(get_c
     # todo :: Validar se precisa mesmo retornar objeto
     return {'id': chat['id']}
 
+@router.get('/chats/{chat_id}')
+async def get_chat(chat_id: str, chat_service: ChatService = Depends(get_chat_service)):
+    rdb = get_redis()
+    if not await chat_exists(rdb, chat_id):
+        raise HTTPException(status_code=404, detail=f'Chat {chat_id} does not exist')
+    
+    try:
+        chat_info = await chat_service.get_chat(chat_id)
+        messages = await chat_service.get_messages(chat_id)
+        
+        return {
+            'id': chat_id,
+            'theme': chat_info.get('theme', ''),
+            'created_at': chat_info.get('created_at'),
+            'messages': messages,
+            'message_count': len(messages)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error retrieving chat: {str(e)}')
+    finally:
+        await rdb.aclose()
+
+@router.post('/chats/{chat_id}')
+async def chat(chat_id: str, chat_in: ChatIn, chat_service: ChatService = Depends(get_chat_service)):
+    rdb = get_redis()
+    if not await chat_exists(rdb, chat_id):
+        raise HTTPException(status_code=404, detail=f'Chat {chat_id} does not exist')
+    
+    assistant = RAGAssistant(
+        chat_id=chat_id,
+        rdb=rdb,
+        chat_service=chat_service
+    )
+    sse_stream = assistant.run(message=chat_in.message)
+    return EventSourceResponse(sse_stream, background=rdb.aclose)
+
 @router.websocket("/ws/solo/{chat_id}/{client_id}")
 async def websocket_solo_practice(websocket: WebSocket, chat_id: str, client_id: str, chat_service: ChatService = Depends(get_chat_service)):
     rdb = get_redis()
