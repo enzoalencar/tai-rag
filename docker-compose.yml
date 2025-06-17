@@ -11,29 +11,23 @@ services:
       redis:
         condition: service_started
     environment:
-      - ALLOW_ORIGINS
-      - OPENAI_API_KEY
-      - MODEL
-      - EMBEDDING_MODEL
-      - EMBEDDING_DIMENSIONS
-      - REDIS_HOST=redis
-      - REDIS_PORT
-      - DOCS_DIR
-      - EXPORT_DIR
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      # PostgreSQL
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+      - PGDATABASE=tai_relational_db
       - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres:5432/tai_relational_db
-
-  redis:
-    image: redis/redis-stack-server:latest
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    environment:
-      - REDIS_ARGS=--save 600 1 --save 300 10 --save 60 100
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      # Outras variáveis (definidas em .env)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MODEL=${MODEL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+      - EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS}
+      - DOCS_DIR=${DOCS_DIR}
 
   postgres:
     image: postgres:16
@@ -41,16 +35,23 @@ services:
       - POSTGRES_DB=tai_relational_db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d tai_relational_db"]
       interval: 5s
       timeout: 5s
       retries: 5
-    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis/redis-stack-server:latest
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_ARGS=--save 600 1 --save 300 10 --save 60 100
+    volumes:
+      - redis_data:/data
+
 volumes:
   redis_data:
   postgres_data:
