@@ -11,7 +11,7 @@ from app.assistants.assistant import RAGAssistant
 from app.services import ChatService
 from app.assistants import INITIAL_PROMPT
 from app.utils.openai import transcribe_audio
-from app.utils.websocket import LobbyManager
+from app.utils.websocket import RoomManager
 
 
 class ChatIn(BaseModel):
@@ -21,7 +21,7 @@ class NewChatIn(BaseModel):
     theme_title: str = Field(default='Coffee') # todo :: Ver se essa é a melhor forma de receber o tema do chat
 
 router = APIRouter()
-lobby_manager = LobbyManager(rdb=get_redis())
+room_manager = RoomManager(rdb=get_redis())
 
 @router.post('/chats')
 async def new_chat(chat_in: NewChatIn, chat_service: ChatService = Depends(get_chat_service)):
@@ -85,8 +85,8 @@ async def websocket_solo_practice(websocket: WebSocket, chat_id: str, client_id:
     finally:
         await rdb.aclose()
 
-@router.websocket("/ws/lobby/{chat_id}/{client_id}")
-async def websocket_lobby(
+@router.websocket("/ws/room/{chat_id}/{client_id}")
+async def websocket_room(
     websocket: WebSocket,
     chat_id: str,
     client_id: str,
@@ -94,18 +94,23 @@ async def websocket_lobby(
     chat_service: ChatService = Depends(get_chat_service)
 ):
     rdb = get_redis()
+
     if not await chat_exists(rdb=rdb, chat_id=chat_id):
+        await websocket.accept()
         await websocket.close(code=1008)
         return
 
-    lobby_manager.set_chat_service(chat_service)
+    room_manager.set_chat_service(chat_service)
+    room_manager.rdb = rdb
 
-    await lobby_manager.connect(room_id=chat_id, user_id=client_id, websocket=websocket, mode=mode)
+    await room_manager.connect(room_id=chat_id, user_id=client_id, websocket=websocket, mode=mode)
 
     try:
         while True:
             data = await websocket.receive_json()
             if data.get("type") == "message" and "message" in data:
-                await lobby_manager.handle_message(chat_id, client_id, data["message"])
+                await room_manager.handle_message(chat_id, client_id, data["message"])
     except WebSocketDisconnect:
-        await lobby_manager.disconnect(chat_id, client_id)
+        await room_manager.disconnect(chat_id, client_id)
+    except Exception:
+        await room_manager.disconnect(chat_id, client_id)
