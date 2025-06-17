@@ -30,27 +30,16 @@ async def new_chat(chat_in: NewChatIn, chat_service: ChatService = Depends(get_c
     # todo :: Validar se precisa mesmo retornar objeto
     return {'id': chat['id']}
 
-@router.get('/chats/{chat_id}')
-async def get_chat(chat_id: str, chat_service: ChatService = Depends(get_chat_service)):
+@router.head('/chats/{chat_id}')
+async def check_chat_exists(chat_id: str):
     rdb = get_redis()
-    if not await chat_exists(rdb, chat_id):
+    exists = await chat_exists(rdb, chat_id)
+    await rdb.aclose()
+    
+    if not exists:
         raise HTTPException(status_code=404, detail=f'Chat {chat_id} does not exist')
     
-    try:
-        chat_info = await chat_service.get_chat(chat_id)
-        messages = await chat_service.get_messages(chat_id)
-        
-        return {
-            'id': chat_id,
-            'theme': chat_info.get('theme', ''),
-            'created_at': chat_info.get('created_at'),
-            'messages': messages,
-            'message_count': len(messages)
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f'Error retrieving chat: {str(e)}')
-    finally:
-        await rdb.aclose()
+    return {"status": "ok"}
 
 @router.post('/chats/{chat_id}')
 async def chat(chat_id: str, chat_in: ChatIn, chat_service: ChatService = Depends(get_chat_service)):
