@@ -24,7 +24,7 @@ done\n\
 echo "Executando migrações..."\n\
 alembic upgrade head\n\
 echo "Executando loader.py..."\n\
-python -m /app/utils/loader.py\n\
+python -m app.utils.loader\n\
 echo "Iniciando aplicação..."\n\
 exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}\n' > /home/entrypoint.sh
   
