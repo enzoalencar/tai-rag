@@ -193,7 +193,11 @@ class GroupChatHandler(BaseChatHandler):
             await self.room.broadcast(payload)
 
         try:
-            await assistant.run(message=message, send_func=send_func)
+            await assistant.run(
+                message=message, 
+                send_func=send_func,
+                store_user_message=(message != "start")
+            )
         except Exception:
             logging.exception("Erro em GroupChatHandler._run_assistant")
             raise
